@@ -16,19 +16,20 @@
         .tooltip { position: relative; }
         .tooltip .tooltiptext {
             visibility: hidden;
-            width: 180px;
+            width: 190px;
             background-color: #27272a;
-            color: #fff;
+            color: #ddd;
             text-align: center;
             border-radius: 8px;
-            padding: 6px 10px;
+            padding: 8px 12px;
             position: absolute;
             z-index: 10;
-            bottom: 120%;
+            bottom: 130%;
             left: 50%;
-            margin-left: -90px;
-            font-size: 0.8rem;
+            margin-left: -95px;
+            font-size: 0.82rem;
             white-space: nowrap;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);
         }
         .tooltip:hover .tooltiptext { visibility: visible; }
     </style>
@@ -39,7 +40,7 @@
         <div class="flex justify-between items-center mb-12">
             <div>
                 <h1 class="text-5xl font-bold tracking-tighter">BTC TREASURY LIVE</h1>
-                <p class="text-orange-400 text-xl mt-1">BTC • MSTR • ASST (Strive) • STRC • Smart 8x/day updates</p>
+                <p class="text-orange-400 text-xl mt-1">BTC • MSTR • ASST • STRC • Volume on hover</p>
             </div>
             <div class="text-right">
                 <div id="timestamp" class="text-zinc-400 text-sm font-medium">Last updated: —</div>
@@ -53,18 +54,17 @@
         <!-- Price Widgets -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-12" id="price-grid"></div>
 
-        <!-- Ratio Widgets + New STRC BTC Widget -->
+        <!-- Ratio + STRC BTC Widgets -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6" id="ratio-grid"></div>
 
         <div class="text-center text-zinc-500 text-xs mt-20">
-            Alpha Vantage optimized • MSTR / ASST / STRC update up to 8× during market hours • Volume on hover
+            Alpha Vantage (sequential calls) • MSTR/ASST/STRC update up to 8× during market hours
         </div>
     </div>
 
     <script>
         const AV_KEY = "OVCAM1MS1D0KR27Q";
 
-        // Persistent last known data
         let lastData = {
             btcPrice: 84000,
             mstr: { price: 129.76, change: 0, volume: 0 },
@@ -81,7 +81,7 @@
             if (day === 0 || day === 6) return false;
 
             const utcHour = now.getUTCHours();
-            const etHour = (utcHour - 4 + 24) % 24;   // Rough ET (good enough)
+            const etHour = (utcHour - 4 + 24) % 24;
 
             return (etHour > 9 || (etHour === 9 && now.getUTCMinutes() >= 30)) && etHour < 16;
         }
@@ -90,9 +90,9 @@
             try {
                 const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${AV_KEY}`;
                 const res = await fetch(url);
+                if (!res.ok) return null;
                 const data = await res.json();
                 const quote = data['Global Quote'] || {};
-
                 return {
                     price: parseFloat(quote['05. price']) || null,
                     change: parseFloat(quote['10. change percent']) || 0,
@@ -106,7 +106,7 @@
         async function fetchAllPrices() {
             let btcPrice = lastData.btcPrice;
 
-            // BTC always updates every 5 min
+            // BTC from CoinGecko
             try {
                 const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
                 const cgData = await cgRes.json();
@@ -120,28 +120,28 @@
             let asst = lastData.asst;
             let strc = lastData.strc;
 
-            // Limit to ~8 fetches per day during market hours
             const canFetch = marketOpen && fetchCountToday < 8 && 
-                             (!lastMarketFetchTime || (now - lastMarketFetchTime) > 300000); // at least 5 min apart
+                             (!lastMarketFetchTime || (now - lastMarketFetchTime) > 300000);
 
             if (canFetch) {
                 const symbols = ['MSTR', 'ASST', 'STRC'];
                 for (const sym of symbols) {
                     const result = await fetchAlphaQuote(sym);
-                    if (result && result.price) {
+                    if (result && result.price !== null) {
                         if (sym === 'MSTR') mstr = result;
                         else if (sym === 'ASST') asst = result;
                         else if (sym === 'STRC') strc = result;
                     }
+                    // Small delay to avoid rate limit
+                    await new Promise(resolve => setTimeout(resolve, 1200));
                 }
                 fetchCountToday++;
                 lastMarketFetchTime = now;
             }
 
-            // Save latest data
             lastData = { btcPrice, mstr, asst, strc };
 
-            // === Price Cards (Volume in tooltip) ===
+            // Price Cards with hover volume
             const priceHTML = `
                 <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
                     <p class="text-orange-400 font-mono text-2xl">BTC</p>
@@ -193,15 +193,11 @@
             `;
             document.getElementById('price-grid').innerHTML = priceHTML;
 
-            // === Ratios + New STRC BTC Widget ===
+            // Ratios + STRC BTC widget
             const btcMstr = Math.round(btcPrice / mstr.price);
             const btcAsst = Math.round(btcPrice / asst.price);
             const mstrAsst = (mstr.price / asst.price).toFixed(1);
-
-            // STRC BTC = (STRC Volume × 100 × 0.55) / BTC Price
-            const strcBtc = strc.volume > 0 
-                ? ((strc.volume * 100 * 0.55) / btcPrice).toFixed(2)
-                : "—";
+            const strcBtc = strc.volume > 0 ? ((strc.volume * 100 * 0.55) / btcPrice).toFixed(2) : "—";
 
             const widgetHTML = `
                 <div class="card bg-zinc-900 rounded-3xl p-8 text-center border border-zinc-800">
@@ -219,12 +215,11 @@
                 <div class="card bg-zinc-900 rounded-3xl p-8 text-center border border-zinc-800">
                     <p class="text-orange-400 font-medium">STRC BTC</p>
                     <div class="ratio mt-6">${strcBtc}</div>
-                    <p class="text-xs text-zinc-500 mt-2">(STRC Vol × 55) / BTC</p>
+                    <p class="text-xs text-zinc-500 mt-2">(STRC Vol × 55) / BTC Price</p>
                 </div>
             `;
             document.getElementById('ratio-grid').innerHTML = widgetHTML;
 
-            // Timestamp
             const displayTime = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
             document.getElementById('timestamp').innerHTML = `Last updated: <span class="font-mono">${displayTime}</span>`;
         }
@@ -235,7 +230,7 @@
 
         window.onload = () => {
             fetchAllPrices();
-            setInterval(fetchAllPrices, 300000);   // every 5 minutes
+            setInterval(fetchAllPrices, 300000);
         };
     </script>
 </body>
