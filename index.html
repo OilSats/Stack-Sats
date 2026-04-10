@@ -59,9 +59,9 @@
                 const btcPrice = parseFloat(cgData.bitcoin.usd) || 0;
 
                 // Stocks via public proxy to avoid CORS (Alpha Vantage style + Yahoo fallback)
-                let mstrPrice = 128.50, mstrChange = 0;
-                let asstPrice = 9.80, asstChange = 0;
-                let mtplfPrice = 1.97, mtplfChange = 0;
+                let mstrPrice = 129.76, mstrChange = 0;
+                let asstPrice = 10.42, asstChange = 0;
+                let mtplfPrice = 2.01, mtplfChange = 0;
 
                 try {
                     const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v7/finance/quote?symbols=MSTR,ASST,MTPLF')}`;
