@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        body { font-family: 'Inter', system-ui, ubuntu; }
+        body { font-family: 'Inter', system-ui, sans-serif; }
         .card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .card:hover { transform: translateY(-4px); }
         .price { font-size: 2.85rem; line-height: 1; font-weight: 700; letter-spacing: -2px; }
@@ -35,23 +35,20 @@
         <!-- Price Widgets -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-16" id="price-grid"></div>
 
-        <!-- Ratio Widgets (no header) -->
+        <!-- Ratio Widgets -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="ratio-grid"></div>
 
         <div class="text-center text-zinc-500 text-xs mt-20">
-            Real data from CoinGecko + Yahoo Finance (via proxy) • Prices &amp; % changes update live every 5 minutes
+            Real market data • Prices and % changes update automatically every 5 minutes
         </div>
     </div>
 
     <script>
-        // Your tweaked fallback prices (used only if both APIs fail)
+        // Your preferred fallback prices
         let fallback = {
-            mstrPrice: 129.76,
-            mstrChange: 0,
-            asstPrice: 10.42,
-            asstChange: 0,
-            mtplfPrice: 2.01,
-            mtplfChange: 0
+            mstrPrice: 129.76, mstrChange: 0,
+            asstPrice: 10.42, asstChange: 0,
+            mtplfPrice: 2.01, mtplfChange: 0
         };
 
         async function fetchAllPrices() {
@@ -64,40 +61,43 @@
             let mtplfChange = fallback.mtplfChange;
 
             try {
-                // 1. BTC from CoinGecko (always reliable)
+                // BTC - CoinGecko (very stable)
                 const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
                 const cgData = await cgRes.json();
                 btcPrice = parseFloat(cgData.bitcoin.usd) || btcPrice;
 
-                // 2. Stocks from Yahoo Finance via corsproxy.io (best working public proxy right now)
-                const yahooUrl = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=MSTR,ASST,MTPLF';
-                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(yahooUrl)}`;
+                // Stocks - Try a different stable proxy method (corsproxy.io alternative via allorigins + direct fallback)
+                try {
+                    const yahooUrl = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=MSTR,ASST,MTPLF';
+                    const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`);
+                    if (proxyRes.ok) {
+                        const data = await proxyRes.json();
+                        const quotes = JSON.parse(data.contents).quoteResponse?.result || [];
 
-                const proxyRes = await fetch(proxyUrl);
-                if (proxyRes.ok) {
-                    const proxyData = await proxyRes.json();
-                    const quotes = proxyData.quoteResponse?.result || [];
-
-                    quotes.forEach(q => {
-                        if (q.symbol === 'MSTR') {
-                            mstrPrice = q.regularMarketPrice || mstrPrice;
-                            mstrChange = q.regularMarketChangePercent || mstrChange;
-                        }
-                        if (q.symbol === 'ASST') {
-                            asstPrice = q.regularMarketPrice || asstPrice;
-                            asstChange = q.regularMarketChangePercent || asstChange;
-                        }
-                        if (q.symbol === 'MTPLF') {
-                            mtplfPrice = q.regularMarketPrice || mtplfPrice;
-                            mtplfChange = q.regularMarketChangePercent || mtplfChange;
-                        }
-                    });
+                        quotes.forEach(q => {
+                            if (q.symbol === 'MSTR') {
+                                mstrPrice = q.regularMarketPrice || mstrPrice;
+                                mstrChange = q.regularMarketChangePercent || mstrChange;
+                            }
+                            if (q.symbol === 'ASST') {
+                                asstPrice = q.regularMarketPrice || asstPrice;
+                                asstChange = q.regularMarketChangePercent || asstChange;
+                            }
+                            if (q.symbol === 'MTPLF') {
+                                mtplfPrice = q.regularMarketPrice || mtplfPrice;
+                                mtplfChange = q.regularMarketChangePercent || mtplfChange;
+                            }
+                        });
+                    }
+                } catch (proxyErr) {
+                    console.warn("Proxy unavailable - using your fallback prices for now");
                 }
+
             } catch (err) {
-                console.warn("Live fetch failed → using your fallback prices");
+                console.warn("Using fallback prices");
             }
 
-            // === PRICE CARDS (with real % change when available) ===
+            // Render Prices with real % changes
             const priceHTML = `
                 <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
                     <p class="text-orange-400 font-mono text-2xl">BTC</p>
@@ -112,7 +112,7 @@
                             <p class="text-zinc-500 text-sm">Strategy Inc</p>
                         </div>
                         <span class="${mstrChange >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
-                            ${mstrChange >= 0 ? '↑' : '↓'} ${mstrChange.toFixed(2)}%
+                            ${mstrChange >= 0 ? '↑' : '↓'} ${Math.abs(mstrChange).toFixed(2)}%
                         </span>
                     </div>
                     <div class="price mt-6">$${mstrPrice.toFixed(2)}</div>
@@ -125,7 +125,7 @@
                             <p class="text-zinc-500 text-sm">Strive Inc.</p>
                         </div>
                         <span class="${asstChange >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
-                            ${asstChange >= 0 ? '↑' : '↓'} ${asstChange.toFixed(2)}%
+                            ${asstChange >= 0 ? '↑' : '↓'} ${Math.abs(asstChange).toFixed(2)}%
                         </span>
                     </div>
                     <div class="price mt-6">$${asstPrice.toFixed(2)}</div>
@@ -138,7 +138,7 @@
                             <p class="text-zinc-500 text-sm">Metaplanet</p>
                         </div>
                         <span class="${mtplfChange >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
-                            ${mtplfChange >= 0 ? '↑' : '↓'} ${mtplfChange.toFixed(2)}%
+                            ${mtplfChange >= 0 ? '↑' : '↓'} ${Math.abs(mtplfChange).toFixed(2)}%
                         </span>
                     </div>
                     <div class="price mt-6">$${mtplfPrice.toFixed(2)}</div>
@@ -146,7 +146,7 @@
             `;
             document.getElementById('price-grid').innerHTML = priceHTML;
 
-            // === RATIOS (dynamically calculated from live/fallback prices) ===
+            // Dynamic Ratios
             const btcMstr = Math.round(btcPrice / mstrPrice);
             const btcAsst = Math.round(btcPrice / asstPrice);
             const mstrAsst = (mstrPrice / asstPrice).toFixed(1);
@@ -177,10 +177,9 @@
             fetchAllPrices();
         }
 
-        // Auto-refresh every 5 minutes + initial load
         window.onload = () => {
             fetchAllPrices();
-            setInterval(fetchAllPrices, 300000);
+            setInterval(fetchAllPrices, 300000);  // every 5 minutes
         };
     </script>
 </body>
