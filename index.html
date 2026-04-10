@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC Treasury Live • 5-Min Updates</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .price {
+            font-size: 3rem;
+            line-height: 1;
+            font-weight: 700;
+            letter-spacing: -2px;
+        }
+        .ratio {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen">
+    <div class="max-w-7xl mx-auto px-6 py-10">
+
+        <!-- Header (matches Sats-Gas style) -->
+        <div class="flex justify-between items-center mb-12">
+            <div>
+                <h1 class="text-5xl font-bold tracking-tighter">BTC TREASURY LIVE</h1>
+                <p class="text-emerald-400 text-xl mt-1">BTC • MSTR • ASST • MTPLF • 5-minute updates</p>
+            </div>
+            <div class="text-right">
+                <div id="timestamp" class="text-zinc-400 text-sm font-medium">Last updated: —</div>
+                <button onclick="refreshNow()" 
+                        class="mt-3 flex items-center gap-2 bg-white hover:bg-amber-400 text-black px-6 py-3 rounded-2xl font-semibold text-sm">
+                    <i class="fas fa-sync-alt"></i>
+                    REFRESH NOW
+                </button>
+            </div>
+        </div>
+
+        <!-- Price Widgets -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-16" id="price-grid"></div>
+
+        <!-- Ratio Widgets -->
+        <div class="mt-8">
+            <h2 class="text-3xl font-semibold mb-8 flex items-center gap-3">
+                <i class="fas fa-divide text-amber-400"></i>
+                Calculated Values
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="ratio-grid"></div>
+        </div>
+
+        <div class="text-center text-zinc-500 text-xs mt-16">
+            Data from public Yahoo Finance + CoinGecko • No API keys required • Auto-updates every 5 minutes
+        </div>
+    </div>
+
+    <script>
+        // Fetch all prices in ONE call (Yahoo + CoinGecko)
+        async function fetchAllPrices() {
+            try {
+                // Yahoo Finance public endpoint (covers BTC-USD + all stocks)
+                const yahooRes = await fetch('https://query1.finance.yahoo.com/v7/finance/quote?symbols=BTC-USD,MSTR,ASST,MTPLF');
+                const yahooData = await yahooRes.json();
+                const quotes = yahooData.quoteResponse.result;
+
+                // Build price map
+                const prices = {};
+                quotes.forEach(q => {
+                    prices[q.symbol] = {
+                        price: q.regularMarketPrice,
+                        change: q.regularMarketChangePercent
+                    };
+                });
+
+                // BTC is BTC-USD in Yahoo
+                const btcPrice = prices['BTC-USD'].price;
+
+                // Render price cards
+                const priceHTML = `
+                    <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-emerald-400 font-mono text-xl">BTC</p>
+                                <p class="text-zinc-500 text-sm">Bitcoin</p>
+                            </div>
+                            <span class="${prices['BTC-USD'].change >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
+                                ${prices['BTC-USD'].change >= 0 ? '↑' : '↓'} ${prices['BTC-USD'].change.toFixed(2)}%
+                            </span>
+                        </div>
+                        <div class="price mt-6">$${btcPrice.toLocaleString('en-US')}</div>
+                    </div>
+
+                    <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-emerald-400 font-mono text-xl">MSTR</p>
+                                <p class="text-zinc-500 text-sm">MicroStrategy</p>
+                            </div>
+                            <span class="${prices.MSTR.change >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
+                                ${prices.MSTR.change >= 0 ? '↑' : '↓'} ${prices.MSTR.change.toFixed(2)}%
+                            </span>
+                        </div>
+                        <div class="price mt-6">$${prices.MSTR.price.toLocaleString('en-US')}</div>
+                    </div>
+
+                    <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-emerald-400 font-mono text-xl">ASST</p>
+                                <p class="text-zinc-500 text-sm">Asset Entities</p>
+                            </div>
+                            <span class="${prices.ASST.change >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
+                                ${prices.ASST.change >= 0 ? '↑' : '↓'} ${prices.ASST.change.toFixed(2)}%
+                            </span>
+                        </div>
+                        <div class="price mt-6">$${prices.ASST.price.toLocaleString('en-US')}</div>
+                    </div>
+
+                    <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-emerald-400 font-mono text-xl">MTPLF</p>
+                                <p class="text-zinc-500 text-sm">Metaplanet</p>
+                            </div>
+                            <span class="${prices.MTPLF.change >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
+                                ${prices.MTPLF.change >= 0 ? '↑' : '↓'} ${prices.MTPLF.change.toFixed(2)}%
+                            </span>
+                        </div>
+                        <div class="price mt-6">$${prices.MTPLF.price.toLocaleString('en-US')}</div>
+                    </div>
+                `;
+                document.getElementById('price-grid').innerHTML = priceHTML;
+
+                // Render ratio cards
+                const ratioHTML = `
+                    <div class="card bg-zinc-900 rounded-3xl p-8 text-center border border-zinc-800">
+                        <p class="text-amber-400 font-medium">BTC / MSTR</p>
+                        <div class="ratio mt-4">${(btcPrice / prices.MSTR.price).toFixed(4)}</div>
+                        <p class="text-xs text-zinc-500 mt-2">BTC price ÷ MSTR price</p>
+                    </div>
+                    <div class="card bg-zinc-900 rounded-3xl p-8 text-center border border-zinc-800">
+                        <p class="text-amber-400 font-medium">BTC / ASST</p>
+                        <div class="ratio mt-4">${(btcPrice / prices.ASST.price).toFixed(4)}</div>
+                        <p class="text-xs text-zinc-500 mt-2">BTC price ÷ ASST price</p>
+                    </div>
+                    <div class="card bg-zinc-900 rounded-3xl p-8 text-center border border-zinc-800">
+                        <p class="text-amber-400 font-medium">MSTR / ASST</p>
+                        <div class="ratio mt-4">${(prices.MSTR.price / prices.ASST.price).toFixed(4)}</div>
+                        <p class="text-xs text-zinc-500 mt-2">MSTR price ÷ ASST price</p>
+                    </div>
+                `;
+                document.getElementById('ratio-grid').innerHTML = ratioHTML;
+
+                // Update timestamp
+                const now = new Date();
+                document.getElementById('timestamp').innerHTML = 
+                    `Last updated: <span class="font-semibold">${now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>`;
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('price-grid').innerHTML = 
+                    `<div class="col-span-4 text-center py-12 text-red-400">⚠️ Could not load prices. Try refreshing.</div>`;
+            }
+        }
+
+        // Auto-refresh every 5 minutes
+        function startAutoRefresh() {
+            fetchAllPrices();
+            setInterval(fetchAllPrices, 300000); // 5 minutes
+        }
+
+        function refreshNow() {
+            fetchAllPrices();
+        }
+
+        // Start everything
+        window.onload = startAutoRefresh;
+    </script>
+</body>
+</html>
