@@ -12,7 +12,25 @@
         .card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .card:hover { transform: translateY(-4px); }
         .price { font-size: 2.85rem; line-height: 1; font-weight: 700; letter-spacing: -2px; }
-        .ratio { font-size: 2.45rem; font-weight: 700; letter-spacing: -1px; }
+        .ratio { font-size: 2.35rem; font-weight: 700; letter-spacing: -1px; }
+        .tooltip { position: relative; }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 180px;
+            background-color: #27272a;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 6px 10px;
+            position: absolute;
+            z-index: 10;
+            bottom: 120%;
+            left: 50%;
+            margin-left: -90px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+        }
+        .tooltip:hover .tooltiptext { visibility: visible; }
     </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen">
@@ -21,7 +39,7 @@
         <div class="flex justify-between items-center mb-12">
             <div>
                 <h1 class="text-5xl font-bold tracking-tighter">BTC TREASURY LIVE</h1>
-                <p class="text-orange-400 text-xl mt-1">BTC • MSTR • ASST (Strive) • MTPLF • Smart updates (Alpha Vantage free tier)</p>
+                <p class="text-orange-400 text-xl mt-1">BTC • MSTR • ASST (Strive) • STRC • Smart 8x/day updates</p>
             </div>
             <div class="text-right">
                 <div id="timestamp" class="text-zinc-400 text-sm font-medium">Last updated: —</div>
@@ -32,39 +50,40 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-16" id="price-grid"></div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="ratio-grid"></div>
+        <!-- Price Widgets -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-12" id="price-grid"></div>
+
+        <!-- Ratio Widgets + New STRC BTC Widget -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6" id="ratio-grid"></div>
 
         <div class="text-center text-zinc-500 text-xs mt-20">
-            Alpha Vantage optimized: MTPLF once/day • MSTR/ASST ~12x during market hours only • BTC every 5 min
+            Alpha Vantage optimized • MSTR / ASST / STRC update up to 8× during market hours • Volume on hover
         </div>
     </div>
 
     <script>
         const AV_KEY = "OVCAM1MS1D0KR27Q";
 
-        // Persistent storage (last known good data)
+        // Persistent last known data
         let lastData = {
             btcPrice: 84000,
             mstr: { price: 129.76, change: 0, volume: 0 },
             asst: { price: 10.42, change: 0, volume: 0 },
-            mtplf: { price: 2.01, change: 0, volume: 0 }
+            strc: { price: 100.00, change: 0, volume: 0 }
         };
 
-        let mtplfFetchedToday = false;
-        let lastMarketFetch = null;
+        let fetchCountToday = 0;
+        let lastMarketFetchTime = null;
 
         function isMarketOpen() {
             const now = new Date();
-            const day = now.getDay(); // 0=Sun, 6=Sat
-            if (day === 0 || day === 6) return false; // Weekend
+            const day = now.getDay();
+            if (day === 0 || day === 6) return false;
 
-            const hour = now.getUTCHours();
-            const minute = now.getUTCMinutes();
-            const etHour = (hour - 4 + 24) % 24; // Rough ET conversion (ignores DST but good enough)
+            const utcHour = now.getUTCHours();
+            const etHour = (utcHour - 4 + 24) % 24;   // Rough ET (good enough)
 
-            // 9:30 AM - 4:00 PM ET
-            return (etHour > 9 || (etHour === 9 && minute >= 30)) && (etHour < 16);
+            return (etHour > 9 || (etHour === 9 && now.getUTCMinutes() >= 30)) && etHour < 16;
         }
 
         async function fetchAlphaQuote(symbol) {
@@ -87,7 +106,7 @@
         async function fetchAllPrices() {
             let btcPrice = lastData.btcPrice;
 
-            // Always update BTC every 5 min
+            // BTC always updates every 5 min
             try {
                 const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
                 const cgData = await cgRes.json();
@@ -95,36 +114,34 @@
             } catch (e) {}
 
             const now = new Date();
-            const isMarket = isMarketOpen();
+            const marketOpen = isMarketOpen();
 
-            // MSTR & ASST - up to ~12 times/day during market hours
             let mstr = lastData.mstr;
             let asst = lastData.asst;
+            let strc = lastData.strc;
 
-            if (isMarket && (!lastMarketFetch || (now - lastMarketFetch) > 300000)) {  // at least 5 min since last market fetch
-                const mstrData = await fetchAlphaQuote('MSTR');
-                if (mstrData && mstrData.price) mstr = mstrData;
+            // Limit to ~8 fetches per day during market hours
+            const canFetch = marketOpen && fetchCountToday < 8 && 
+                             (!lastMarketFetchTime || (now - lastMarketFetchTime) > 300000); // at least 5 min apart
 
-                const asstData = await fetchAlphaQuote('ASST');
-                if (asstData && asstData.price) asst = asstData;
-
-                lastMarketFetch = now;
-            }
-
-            // MTPLF - only once per day
-            let mtplf = lastData.mtplf;
-            if (!mtplfFetchedToday) {
-                const mtplfData = await fetchAlphaQuote('MTPLF');
-                if (mtplfData && mtplfData.price) {
-                    mtplf = mtplfData;
-                    mtplfFetchedToday = true;
+            if (canFetch) {
+                const symbols = ['MSTR', 'ASST', 'STRC'];
+                for (const sym of symbols) {
+                    const result = await fetchAlphaQuote(sym);
+                    if (result && result.price) {
+                        if (sym === 'MSTR') mstr = result;
+                        else if (sym === 'ASST') asst = result;
+                        else if (sym === 'STRC') strc = result;
+                    }
                 }
+                fetchCountToday++;
+                lastMarketFetchTime = now;
             }
 
-            // Save latest values
-            lastData = { btcPrice, mstr, asst, mtplf };
+            // Save latest data
+            lastData = { btcPrice, mstr, asst, strc };
 
-            // Render Prices
+            // === Price Cards (Volume in tooltip) ===
             const priceHTML = `
                 <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
                     <p class="text-orange-400 font-mono text-2xl">BTC</p>
@@ -132,53 +149,61 @@
                     <div class="price mt-6">$${btcPrice.toLocaleString('en-US')}</div>
                 </div>
 
-                <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
+                <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800 tooltip">
                     <div class="flex justify-between items-start">
                         <div>
                             <p class="text-orange-400 font-mono text-2xl">MSTR</p>
-                            <p class="text-zinc-500 text-sm">Strategy • Vol: ${mstr.volume.toLocaleString()}</p>
+                            <p class="text-zinc-500 text-sm">Strategy Inc</p>
                         </div>
                         <span class="${mstr.change >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
                             ${mstr.change >= 0 ? '↑' : '↓'} ${Math.abs(mstr.change).toFixed(2)}%
                         </span>
                     </div>
                     <div class="price mt-6">$${mstr.price.toFixed(2)}</div>
+                    <span class="tooltiptext">Volume: ${mstr.volume.toLocaleString()}</span>
                 </div>
 
-                <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
+                <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800 tooltip">
                     <div class="flex justify-between items-start">
                         <div>
                             <p class="text-orange-400 font-mono text-2xl">ASST</p>
-                            <p class="text-zinc-500 text-sm">Strive Inc. • Vol: ${asst.volume.toLocaleString()}</p>
+                            <p class="text-zinc-500 text-sm">Strive Inc.</p>
                         </div>
                         <span class="${asst.change >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
                             ${asst.change >= 0 ? '↑' : '↓'} ${Math.abs(asst.change).toFixed(2)}%
                         </span>
                     </div>
                     <div class="price mt-6">$${asst.price.toFixed(2)}</div>
+                    <span class="tooltiptext">Volume: ${asst.volume.toLocaleString()}</span>
                 </div>
 
-                <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
+                <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800 tooltip">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-orange-400 font-mono text-2xl">MTPLF</p>
-                            <p class="text-zinc-500 text-sm">Metaplanet • Vol: ${mtplf.volume.toLocaleString()}</p>
+                            <p class="text-orange-400 font-mono text-2xl">STRC</p>
+                            <p class="text-zinc-500 text-sm">Strategy Preferred</p>
                         </div>
-                        <span class="${mtplf.change >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
-                            ${mtplf.change >= 0 ? '↑' : '↓'} ${Math.abs(mtplf.change).toFixed(2)}%
+                        <span class="${strc.change >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
+                            ${strc.change >= 0 ? '↑' : '↓'} ${Math.abs(strc.change).toFixed(2)}%
                         </span>
                     </div>
-                    <div class="price mt-6">$${mtplf.price.toFixed(2)}</div>
+                    <div class="price mt-6">$${strc.price.toFixed(2)}</div>
+                    <span class="tooltiptext">Volume: ${strc.volume.toLocaleString()}</span>
                 </div>
             `;
             document.getElementById('price-grid').innerHTML = priceHTML;
 
-            // Ratios
+            // === Ratios + New STRC BTC Widget ===
             const btcMstr = Math.round(btcPrice / mstr.price);
             const btcAsst = Math.round(btcPrice / asst.price);
             const mstrAsst = (mstr.price / asst.price).toFixed(1);
 
-            const ratioHTML = `
+            // STRC BTC = (STRC Volume × 100 × 0.55) / BTC Price
+            const strcBtc = strc.volume > 0 
+                ? ((strc.volume * 100 * 0.55) / btcPrice).toFixed(2)
+                : "—";
+
+            const widgetHTML = `
                 <div class="card bg-zinc-900 rounded-3xl p-8 text-center border border-zinc-800">
                     <p class="text-orange-400 font-medium">BTC / MSTR</p>
                     <div class="ratio mt-6">${btcMstr}</div>
@@ -191,9 +216,15 @@
                     <p class="text-orange-400 font-medium">MSTR / ASST</p>
                     <div class="ratio mt-6">${mstrAsst}</div>
                 </div>
+                <div class="card bg-zinc-900 rounded-3xl p-8 text-center border border-zinc-800">
+                    <p class="text-orange-400 font-medium">STRC BTC</p>
+                    <div class="ratio mt-6">${strcBtc}</div>
+                    <p class="text-xs text-zinc-500 mt-2">(STRC Vol × 55) / BTC</p>
+                </div>
             `;
-            document.getElementById('ratio-grid').innerHTML = ratioHTML;
+            document.getElementById('ratio-grid').innerHTML = widgetHTML;
 
+            // Timestamp
             const displayTime = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
             document.getElementById('timestamp').innerHTML = `Last updated: <span class="font-mono">${displayTime}</span>`;
         }
@@ -202,10 +233,9 @@
             fetchAllPrices();
         }
 
-        // Initial load + every 5 minutes
         window.onload = () => {
             fetchAllPrices();
-            setInterval(fetchAllPrices, 300000);
+            setInterval(fetchAllPrices, 300000);   // every 5 minutes
         };
     </script>
 </body>
