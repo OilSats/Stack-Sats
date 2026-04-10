@@ -23,7 +23,7 @@
         <div class="flex justify-between items-center mb-12">
             <div>
                 <h1 class="text-5xl font-bold tracking-tighter">BTC TREASURY LIVE</h1>
-                <p class="text-emerald-400 text-xl mt-1">BTC • MSTR • ASST (Strive) • MTPLF • Updates every 5 min</p>
+                <p class="text-orange-400 text-xl mt-1">BTC • MSTR • ASST (Strive) • MTPLF • Updates every 5 min</p>
             </div>
             <div class="text-right">
                 <div id="timestamp" class="text-zinc-400 text-sm font-medium">Last updated: —</div>
@@ -81,7 +81,7 @@
                 // Price Cards
                 const priceHTML = `
                     <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
-                        <p class="text-emerald-400 font-mono text-2xl">BTC</p>
+                        <p class="text-orange-400 font-mono text-2xl">BTC</p>
                         <p class="text-zinc-500 text-sm">Bitcoin</p>
                         <div class="price mt-6">$${btcPrice.toLocaleString('en-US')}</div>
                     </div>
@@ -89,10 +89,10 @@
                     <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
                         <div class="flex justify-between items-start">
                             <div>
-                                <p class="text-emerald-400 font-mono text-2xl">MSTR</p>
+                                <p class="text-orange-400 font-mono text-2xl">MSTR</p>
                                 <p class="text-zinc-500 text-sm">MicroStrategy (Strategy)</p>
                             </div>
-                            <span class="${mstrChange >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
+                            <span class="${mstrChange >= 0 ? 'text-orange-400' : 'text-red-400'} text-sm font-medium">
                                 ${mstrChange >= 0 ? '↑' : '↓'} ${mstrChange.toFixed(2)}%
                             </span>
                         </div>
@@ -102,10 +102,10 @@
                     <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
                         <div class="flex justify-between items-start">
                             <div>
-                                <p class="text-emerald-400 font-mono text-2xl">ASST</p>
+                                <p class="text-orange-400 font-mono text-2xl">ASST</p>
                                 <p class="text-zinc-500 text-sm">Strive Inc.</p>
                             </div>
-                            <span class="${asstChange >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
+                            <span class="${asstChange >= 0 ? 'text-orange-400' : 'text-red-400'} text-sm font-medium">
                                 ${asstChange >= 0 ? '↑' : '↓'} ${asstChange.toFixed(2)}%
                             </span>
                         </div>
@@ -115,10 +115,10 @@
                     <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
                         <div class="flex justify-between items-start">
                             <div>
-                                <p class="text-emerald-400 font-mono text-2xl">MTPLF</p>
+                                <p class="text-orange-400 font-mono text-2xl">MTPLF</p>
                                 <p class="text-zinc-500 text-sm">Metaplanet</p>
                             </div>
-                            <span class="${mtplfChange >= 0 ? 'text-emerald-400' : 'text-red-400'} text-sm font-medium">
+                            <span class="${mtplfChange >= 0 ? 'text-orange-400' : 'text-red-400'} text-sm font-medium">
                                 ${mtplfChange >= 0 ? '↑' : '↓'} ${mtplfChange.toFixed(2)}%
                             </span>
                         </div>
