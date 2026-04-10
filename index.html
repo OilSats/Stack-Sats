@@ -32,19 +32,16 @@
             </div>
         </div>
 
-        <!-- Price Widgets -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-16" id="price-grid"></div>
-
-        <!-- Ratio Widgets -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="ratio-grid"></div>
 
         <div class="text-center text-zinc-500 text-xs mt-20">
-            Real market data • Prices and % changes update automatically every 5 minutes
+            Real market data from CoinGecko + FMP • % changes and ratios update automatically every 5 minutes
         </div>
     </div>
 
     <script>
-        // Your preferred fallback prices
+        // Your fallback prices (used only if API calls fail)
         let fallback = {
             mstrPrice: 129.76, mstrChange: 0,
             asstPrice: 10.42, asstChange: 0,
@@ -61,43 +58,35 @@
             let mtplfChange = fallback.mtplfChange;
 
             try {
-                // BTC - CoinGecko (very stable)
+                // BTC from CoinGecko (very reliable)
                 const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
                 const cgData = await cgRes.json();
                 btcPrice = parseFloat(cgData.bitcoin.usd) || btcPrice;
 
-                // Stocks - Try a different stable proxy method (corsproxy.io alternative via allorigins + direct fallback)
-                try {
-                    const yahooUrl = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=MSTR,ASST,MTPLF';
-                    const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`);
-                    if (proxyRes.ok) {
-                        const data = await proxyRes.json();
-                        const quotes = JSON.parse(data.contents).quoteResponse?.result || [];
-
-                        quotes.forEach(q => {
-                            if (q.symbol === 'MSTR') {
-                                mstrPrice = q.regularMarketPrice || mstrPrice;
-                                mstrChange = q.regularMarketChangePercent || mstrChange;
-                            }
-                            if (q.symbol === 'ASST') {
-                                asstPrice = q.regularMarketPrice || asstPrice;
-                                asstChange = q.regularMarketChangePercent || asstChange;
-                            }
-                            if (q.symbol === 'MTPLF') {
-                                mtplfPrice = q.regularMarketPrice || mtplfPrice;
-                                mtplfChange = q.regularMarketChangePercent || mtplfChange;
-                            }
-                        });
-                    }
-                } catch (proxyErr) {
-                    console.warn("Proxy unavailable - using your fallback prices for now");
+                // Stocks from FMP (demo key works in browser without CORS issues for basic quotes)
+                const fmpRes = await fetch('https://financialmodelingprep.com/api/v3/quote/MSTR,ASST,MTPLF?apikey=demo');
+                if (fmpRes.ok) {
+                    const data = await fmpRes.json();
+                    data.forEach(item => {
+                        if (item.symbol === 'MSTR') {
+                            mstrPrice = item.price || mstrPrice;
+                            mstrChange = item.changesPercentage || mstrChange;
+                        }
+                        if (item.symbol === 'ASST') {
+                            asstPrice = item.price || asstPrice;
+                            asstChange = item.changesPercentage || asstChange;
+                        }
+                        if (item.symbol === 'MTPLF') {
+                            mtplfPrice = item.price || mtplfPrice;
+                            mtplfChange = item.changesPercentage || mtplfChange;
+                        }
+                    });
                 }
-
             } catch (err) {
-                console.warn("Using fallback prices");
+                console.warn("Live data temporarily unavailable — using fallback prices");
             }
 
-            // Render Prices with real % changes
+            // Price Cards (real % changes)
             const priceHTML = `
                 <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
                     <p class="text-orange-400 font-mono text-2xl">BTC</p>
@@ -167,7 +156,6 @@
             `;
             document.getElementById('ratio-grid').innerHTML = ratioHTML;
 
-            // Timestamp
             const now = new Date();
             document.getElementById('timestamp').innerHTML = 
                 `Last updated: <span class="font-mono">${now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>`;
@@ -177,9 +165,10 @@
             fetchAllPrices();
         }
 
+        // Auto refresh every 5 minutes
         window.onload = () => {
             fetchAllPrices();
-            setInterval(fetchAllPrices, 300000);  // every 5 minutes
+            setInterval(fetchAllPrices, 300000);
         };
     </script>
 </body>
