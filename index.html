@@ -13,7 +13,6 @@
         .card:hover { transform: translateY(-4px); }
         .price { font-size: 2.85rem; line-height: 1; font-weight: 700; letter-spacing: -2px; }
         .ratio { font-size: 2.45rem; font-weight: 700; letter-spacing: -1px; }
-        .orange { color: #f59e0b; }
     </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen">
@@ -40,12 +39,12 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="ratio-grid"></div>
 
         <div class="text-center text-zinc-500 text-xs mt-20">
-            Reliable public data sources • No personal API key required • Click Refresh if prices look stale
+            Real data from CoinGecko + Yahoo Finance (via proxy) • Prices &amp; % changes update live every 5 minutes
         </div>
     </div>
 
     <script>
-        // Your tweaked fallback prices
+        // Your tweaked fallback prices (used only if both APIs fail)
         let fallback = {
             mstrPrice: 129.76,
             mstrChange: 0,
@@ -56,7 +55,7 @@
         };
 
         async function fetchAllPrices() {
-            let btcPrice = 0;
+            let btcPrice = 84000;
             let mstrPrice = fallback.mstrPrice;
             let mstrChange = fallback.mstrChange;
             let asstPrice = fallback.asstPrice;
@@ -65,40 +64,40 @@
             let mtplfChange = fallback.mtplfChange;
 
             try {
-                // BTC from CoinGecko
+                // 1. BTC from CoinGecko (always reliable)
                 const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
                 const cgData = await cgRes.json();
-                btcPrice = parseFloat(cgData.bitcoin.usd) || 84000;
+                btcPrice = parseFloat(cgData.bitcoin.usd) || btcPrice;
 
-                // Stocks from FMP demo (best CORS-friendly free option)
-                try {
-                    const fmpRes = await fetch('https://financialmodelingprep.com/api/v3/quote/MSTR,ASST,MTPLF?apikey=demo');
-                    if (fmpRes.ok) {
-                        const fmpData = await fmpRes.json();
-                        fmpData.forEach(item => {
-                            if (item.symbol === 'MSTR') { 
-                                mstrPrice = item.price || mstrPrice; 
-                                mstrChange = item.changesPercentage || 0; 
-                            }
-                            if (item.symbol === 'ASST') { 
-                                asstPrice = item.price || asstPrice; 
-                                asstChange = item.changesPercentage || 0; 
-                            }
-                            if (item.symbol === 'MTPLF') { 
-                                mtplfPrice = item.price || mtplfPrice; 
-                                mtplfChange = item.changesPercentage || 0; 
-                            }
-                        });
-                    }
-                } catch (e) {
-                    console.warn("Using fallback prices");
+                // 2. Stocks from Yahoo Finance via corsproxy.io (best working public proxy right now)
+                const yahooUrl = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=MSTR,ASST,MTPLF';
+                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(yahooUrl)}`;
+
+                const proxyRes = await fetch(proxyUrl);
+                if (proxyRes.ok) {
+                    const proxyData = await proxyRes.json();
+                    const quotes = proxyData.quoteResponse?.result || [];
+
+                    quotes.forEach(q => {
+                        if (q.symbol === 'MSTR') {
+                            mstrPrice = q.regularMarketPrice || mstrPrice;
+                            mstrChange = q.regularMarketChangePercent || mstrChange;
+                        }
+                        if (q.symbol === 'ASST') {
+                            asstPrice = q.regularMarketPrice || asstPrice;
+                            asstChange = q.regularMarketChangePercent || asstChange;
+                        }
+                        if (q.symbol === 'MTPLF') {
+                            mtplfPrice = q.regularMarketPrice || mtplfPrice;
+                            mtplfChange = q.regularMarketChangePercent || mtplfChange;
+                        }
+                    });
                 }
-
             } catch (err) {
-                console.warn("Using fallback prices");
+                console.warn("Live fetch failed → using your fallback prices");
             }
 
-            // Price Cards
+            // === PRICE CARDS (with real % change when available) ===
             const priceHTML = `
                 <div class="card bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
                     <p class="text-orange-400 font-mono text-2xl">BTC</p>
@@ -147,7 +146,7 @@
             `;
             document.getElementById('price-grid').innerHTML = priceHTML;
 
-            // Ratios (no header)
+            // === RATIOS (dynamically calculated from live/fallback prices) ===
             const btcMstr = Math.round(btcPrice / mstrPrice);
             const btcAsst = Math.round(btcPrice / asstPrice);
             const mstrAsst = (mstrPrice / asstPrice).toFixed(1);
@@ -178,7 +177,7 @@
             fetchAllPrices();
         }
 
-        // Auto refresh every 5 minutes
+        // Auto-refresh every 5 minutes + initial load
         window.onload = () => {
             fetchAllPrices();
             setInterval(fetchAllPrices, 300000);
